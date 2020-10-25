@@ -1,8 +1,4 @@
-(ns tic-tac-toe.core
-  (:gen-class))
-
-(def X :x)
-(def O :o)
+(ns tic-tac-toe.core)
 
 (def statuses #{:draw :x-win :o-win :ongoing})
 
@@ -19,46 +15,31 @@
        (partition 3)
        (map #(into [] %))))
 
-(defn diagonal1 
+(defn diagonal1
   [board]
-  (let [[[c1 _ _] 
-         [_  m _] 
+  (let [[[c1 _ _]
+         [_  m _]
          [_  _ c2]] board]
     [c1 m c2]))
 
 (defn diagonal2
   [board]
   (let [[[_  _ c1]
-         [_  m _]
-         [c2 _ _]] board]
+         [_  m  _]
+         [c2 _  _]] board]
     [c1 m c2]))
 
-(defn neighbors
-  "Deltas local describes what the neighbors are.
-   In this case they are on spot away horizontally and vertically but not diagonally
-   Then it generates all the neighbor coordinates given a size(or distance) for what would be considered a neighbor"
-  ([yx]
-   (neighbors [;; vertical and horizontal
-               [-1  0]
-               [1  0]
-               [0 -1]
-               [0  1]
-               
-               ;; diagonally
-               [1   1]
-               [-1 -1]
-               [1  -1]
-               [-1  1]]
-              yx))
-  ([deltas yx]
-   (->> deltas
-        (map #(vec (map + yx %)))
-        (filter (fn [new-yx]
-                  (every? #(< -1 % 3) new-yx))))))
+(def all-positions
+  (->> (for [x     (range 0 3)
+             y     (range 0 3)
+             :when (not= x y 0)]
+         [x y])
+       (into [])))
 
-(defn analyse 
+
+(defn analyse
   [board]
-  {:pre [(every? (fn [line] 
+  {:pre [(every? (fn [line]
                    (= 3 (count line)))
                  board)]}
   (let [board-with-diagonals (-> board
@@ -78,35 +59,111 @@
                (not o-wins)
                can-continue?)
           :ongoing
-          
+
           :else :draw)))
 
-(defn add-to-board [board player mark]
+(defn add-move [board player mark]
   (assoc-in board mark player))
 
-(defn next-moves
+(defn player-next-moves
   ;; look at the empty spots. 
   ;; see if it is possible to add a move for the player at mark
-  [board [x y]]
-  {:pre [(every? (fn [line](= 3 (count line))) board)]}
-  (let [player-at-mark (get-in board [x y])
-        possible-next-moves (atom [])]
+  [board player]
+  {:pre [(every? (fn [line] (= 3 (count line))) board)]}
+  (let [possible-next-moves (atom [])]
+    (when (= :_ player)
+      (throw (Exception. "No player at mark. Pick a position with a player.")))
     (loop [row-idx 2]
       (loop [col-idx 2]
-        (when (= (get-in board [row-idx col-idx]) player-at-mark)
-          (->> (neighbors [row-idx col-idx])
+        (when (= (get-in board [row-idx col-idx]) player)
+          (->> all-positions
                (filter (fn [coord]
-                       (= (get-in board coord) :_)))
+                         (= (get-in board coord) :_)))
                (swap! possible-next-moves concat)))
         (if (zero? col-idx)
           col-idx
           (recur (dec col-idx))))
       (if (zero? row-idx)
-        (map (partial add-to-board board player-at-mark)
-             @possible-next-moves)
-        (recur (dec row-idx))))))
+        row-idx
+        (recur (dec row-idx))))
+    (map (partial add-move board player)
+         (set @possible-next-moves))))
 
-(defn -main
-  "I don't do a whole lot ... yet."
-  [& args]
-  (println "Hello, World!"))
+;; :x is best to start in a corner
+(def o-win-move [[:x :o :_]
+                 [:_ :o :_]
+                 [:x :o :x]])
+
+(def near-emtpy-board [[:x :_ :_]
+                       [:_ :_ :_]
+                       [:_ :_ :_]])
+
+
+
+(def example-board2 [[:x :x :_]
+                     [:x :o :o]
+                     [:o :x :o]])
+
+(defn x-next-moves
+  [board]
+  (let [min-player-moves (player-next-moves board :o)
+        deadly-boards (->> min-player-moves
+                           (map (fn [board]
+                                  {(analyse board) board}))
+                           (filter :o)
+                           (map :o)) ;; filter the mins - when :o would win
+        deadly-positions (atom [])] ;; I need to find where are the deadly coordinates
+    (mapv (fn [deadly]
+            (loop [row-idx 2]
+              (loop [col-idx 2]
+                (when (and (= (get-in deadly [row-idx col-idx]) :o)
+                           (= (get-in board [row-idx col-idx]) :_)) ;; when discovering position add it 
+                  (swap! deadly-positions concat [[row-idx col-idx]]))
+                (if (zero? col-idx)
+                  col-idx
+                  (recur (dec col-idx))))
+              (if (zero? row-idx)
+                row-idx
+                (recur (dec row-idx)))))
+          deadly-boards)
+    (set @deadly-positions)))
+
+(defn game
+  "x y is your move and you play O. X is the starting player"
+  [board [x y]]
+  (let [board-with-move (add-move board :o [x y])
+        state (analyse board-with-move)]
+    (case state
+      :ongoing
+      {:board (add-move  board-with-move :x (first (x-next-moves board-with-move)))
+       :state (analyse (add-move  board-with-move :x (first (x-next-moves board-with-move))))}
+      ;; else
+      {:board board-with-move
+       :state state})))
+
+(def example-board 
+  [[:_ :_ :_]
+   [:x :_ :_]
+   [:x :_ :o]])
+
+(-> example-board
+    (game [0 0])
+    :board
+    (game [0 2]))
+;; => 
+;; {:board 
+;;  [[:o :_ :o] 
+;;   [:x :x :x] 
+;;   [:x :_ :o]], 
+;;  :state :x }
+
+(-> example-board
+    (game [0 0])
+    :board
+    (game [1 2]))
+;; => {
+;; :board 
+;; [[:o :_ :x] 
+;;  [:x :x :o] 
+;;  [:x :_ :o]], 
+;;  :state :x}
