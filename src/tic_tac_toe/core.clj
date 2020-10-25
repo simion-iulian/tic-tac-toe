@@ -2,6 +2,12 @@
 
 (def statuses #{:draw :x-win :o-win :ongoing})
 
+(defn is-board?
+  [board]
+  (every? (fn [line]
+            (= 3 (count line)))
+          board))
+
 (defn winning-line?
   [player line]
   {:pre [(keyword? player)
@@ -39,9 +45,7 @@
 
 (defn analyse
   [board]
-  {:pre [(every? (fn [line]
-                   (= 3 (count line)))
-                 board)]}
+  {:pre [(is-board? board)]}
   (let [board-with-diagonals (-> board
                                  (conj (diagonal1 board))
                                  (conj (diagonal2 board))
@@ -69,7 +73,7 @@
   ;; look at the empty spots. 
   ;; see if it is possible to add a move for the player at mark
   [board player]
-  {:pre [(every? (fn [line] (= 3 (count line))) board)]}
+  {:pre [(is-board? board)]}
   (let [possible-next-moves (atom [])]
     (when (= :_ player)
       (throw (Exception. "No player at mark. Pick a position with a player.")))
@@ -106,6 +110,7 @@
 
 (defn x-next-moves
   [board]
+  {:pre [(is-board? board)]}
   (let [min-player-moves (player-next-moves board :o)
         deadly-boards (->> min-player-moves
                            (map (fn [board]
@@ -131,6 +136,7 @@
 (defn game
   "x y is your move and you play O. X is the starting player"
   [board [x y]]
+  {:pre [(is-board? board)]}
   (let [board-with-move (add-move board :o [x y])
         state (analyse board-with-move)]
     (case state
