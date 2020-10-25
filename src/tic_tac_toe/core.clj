@@ -115,15 +115,14 @@
         deadly-boards (->> min-player-moves
                            (map (fn [board]
                                   {(analyse board) board}))
-                           (filter :o)
-                           (map :o)) ;; filter the mins - when :o would win
-        deadly-positions (atom [])] ;; I need to find where are the deadly coordinates
+                           (keep :o)) ;; filter the mins - when :o would win
+        prevent-opposite-player-positions (atom [])] ;; I need to find where are the deadly coordinates
     (mapv (fn [deadly]
             (loop [row-idx 2]
               (loop [col-idx 2]
                 (when (and (= (get-in deadly [row-idx col-idx]) :o)
                            (= (get-in board [row-idx col-idx]) :_)) ;; when discovering position add it 
-                  (swap! deadly-positions concat [[row-idx col-idx]]))
+                  (swap! prevent-opposite-player-positions concat [[row-idx col-idx]]))
                 (if (zero? col-idx)
                   col-idx
                   (recur (dec col-idx))))
@@ -131,7 +130,7 @@
                 row-idx
                 (recur (dec row-idx)))))
           deadly-boards)
-    (set @deadly-positions)))
+    (set @prevent-opposite-player-positions)))
 
 (defn game
   "x y is your move and you play O. X is the starting player"
