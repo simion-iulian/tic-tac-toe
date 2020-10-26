@@ -90,8 +90,9 @@
       (if (zero? row-idx)
         row-idx
         (recur (dec row-idx))))
-    (map (partial add-move board player)
-         (set @possible-next-moves))))
+    (->> @possible-next-moves
+         (into #{})
+         (map (partial add-move board player)))))
 
 ;; :x is best to start in a corner
 (def o-win-move [[:x :o :_]
@@ -101,8 +102,6 @@
 (def near-emtpy-board [[:x :_ :_]
                        [:_ :_ :_]
                        [:_ :_ :_]])
-
-
 
 (def example-board2 [[:x :x :_]
                      [:x :o :o]
@@ -115,13 +114,14 @@
         deadly-boards (->> min-player-moves
                            (map (fn [board]
                                   {(analyse board) board}))
-                           (keep :o)) ;; filter the mins - when :o would win
-        prevent-opposite-player-positions (atom [])] ;; I need to find where are the deadly coordinates
+                           (keep :o))
+        prevent-opposite-player-positions (atom [])]
     (mapv (fn [deadly]
             (loop [row-idx 2]
               (loop [col-idx 2]
+                 ;; when discovering position add it 
                 (when (and (= (get-in deadly [row-idx col-idx]) :o)
-                           (= (get-in board [row-idx col-idx]) :_)) ;; when discovering position add it 
+                           (= (get-in board [row-idx col-idx]) :_))
                   (swap! prevent-opposite-player-positions concat [[row-idx col-idx]]))
                 (if (zero? col-idx)
                   col-idx
@@ -130,7 +130,7 @@
                 row-idx
                 (recur (dec row-idx)))))
           deadly-boards)
-    (set @prevent-opposite-player-positions)))
+    (set @prevent-opposite-player-positions)))'; 
 
 (defn game
   "x y is your move and you play O. X is the starting player"
