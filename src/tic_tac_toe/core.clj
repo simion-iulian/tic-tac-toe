@@ -1,7 +1,5 @@
 (ns tic-tac-toe.core)
 
-(def statuses #{:draw :x :o :ongoing})
-
 (defn is-board?
   [board]
   (every? (fn [line]
