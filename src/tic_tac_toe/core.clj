@@ -1,6 +1,6 @@
 (ns tic-tac-toe.core)
 
-(def statuses #{:draw :x-win :o-win :ongoing})
+(def statuses #{:draw :x :o :ongoing})
 
 (defn is-board?
   [board]
@@ -11,7 +11,7 @@
 (defn winning-line?
   [player line]
   {:pre [(keyword? player)
-         (some #{player} #{X O})
+         (some #{player} #{:x :o})
          (= 3 (count line))]}
   (or (every? (partial = player) line)))
 
@@ -115,14 +115,14 @@
                            (map (fn [board]
                                   {(analyse board) board}))
                            (keep :o))
-        prevent-opposite-player-positions (atom [])]
+        prevent-o-positions (atom [])]
     (mapv (fn [deadly]
             (loop [row-idx 2]
               (loop [col-idx 2]
                  ;; when discovering position add it 
                 (when (and (= (get-in deadly [row-idx col-idx]) :o)
                            (= (get-in board [row-idx col-idx]) :_))
-                  (swap! prevent-opposite-player-positions concat [[row-idx col-idx]]))
+                  (swap! prevent-o-positions concat [[row-idx col-idx]]))
                 (if (zero? col-idx)
                   col-idx
                   (recur (dec col-idx))))
@@ -130,7 +130,7 @@
                 row-idx
                 (recur (dec row-idx)))))
           deadly-boards)
-    (set @prevent-opposite-player-positions)))'; 
+    (set @prevent-o-positions))); 
 
 (defn game
   "x y is your move and you play O. X is the starting player"
