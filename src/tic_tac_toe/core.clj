@@ -7,11 +7,13 @@
           board))
 
 (defn winning-line?
-  [player line]
+  [player]
   {:pre [(keyword? player)
          (some #{player} #{:x :o})
-         (= 3 (count line))]}
-  (or (every? (partial = player) line)))
+         ]}
+  (fn [line]
+    {:pre [(= 3 (count line))]}
+    (or (every? (partial = player) line))))
 
 (defn lines-to-cols [board]
   (->> board
@@ -40,16 +42,19 @@
          [x y])
        (into [])))
 
+(defn with-diagonals 
+  [board]
+  (-> board
+      (conj (diagonal1 board))
+      (conj (diagonal2 board))
+      (concat (lines-to-cols board))))
 
 (defn analyse
   [board]
   {:pre [(is-board? board)]}
-  (let [board-with-diagonals (-> board
-                                 (conj (diagonal1 board))
-                                 (conj (diagonal2 board))
-                                 (concat (lines-to-cols board)))
-        x-wins (some (partial winning-line? :x) board-with-diagonals)
-        o-wins (some (partial winning-line? :o) board-with-diagonals)
+  (let [all-directions (with-diagonals board)
+        x-wins (some (winning-line? :x) all-directions)
+        o-wins (some (winning-line? :o) all-directions)
         can-continue? (some #{:_} (apply concat board))]
     (cond x-wins
           :x
@@ -67,35 +72,31 @@
 (defn add-move [board player mark]
   (assoc-in board mark player))
 
+(defn empty-marks
+  [m col line]
+  (->> line
+       (reduce-kv (fn [coordinate row mark]
+          (if (= mark :_)
+            (conj coordinate [col row])
+            coordinate)) [])
+       (concat m)))
+
 (defn player-next-moves
   ;; look at the empty spots. 
   ;; see if it is possible to add a move for the player at mark
   [board player]
-  {:pre [(is-board? board)]}
-  (let [possible-next-moves (atom [])]
-    (when (= :_ player)
-      (throw (Exception. "No player at mark. Pick a position with a player.")))
-    (loop [row-idx 2]
-      (loop [col-idx 2]
-        (when (= (get-in board [row-idx col-idx]) player)
-          (->> all-positions
-               (filter (fn [coord]
-                         (= (get-in board coord) :_)))
-               (swap! possible-next-moves concat)))
-        (if (zero? col-idx)
-          col-idx
-          (recur (dec col-idx))))
-      (if (zero? row-idx)
-        row-idx
-        (recur (dec row-idx))))
-    (->> @possible-next-moves
-         (into #{})
-         (map (partial add-move board player)))))
+  {:pre [(is-board? board)
+         (keyword? player)
+         (some #{player} #{:x :o})]}
+  (reduce-kv empty-marks [] board))
+
 
 ;; :x is best to start in a corner
 (def o-win-move [[:x :o :_]
                  [:_ :o :_]
                  [:x :o :x]])
+
+(player-next-moves o-win-move :x)
 
 (def near-emtpy-board [[:x :_ :_]
                        [:_ :_ :_]
@@ -108,38 +109,29 @@
 (defn x-next-moves
   [board]
   {:pre [(is-board? board)]}
-  (let [min-player-moves (player-next-moves board :o)
-        deadly-boards (->> min-player-moves
-                           (map (fn [board]
-                                  {(analyse board) board}))
-                           (keep :o))
-        prevent-o-positions (atom [])]
-    (mapv (fn [deadly]
-            (loop [row-idx 2]
-              (loop [col-idx 2]
-                 ;; when discovering position add it 
-                (when (and (= (get-in deadly [row-idx col-idx]) :o)
-                           (= (get-in board [row-idx col-idx]) :_))
-                  (swap! prevent-o-positions concat [[row-idx col-idx]]))
-                (if (zero? col-idx)
-                  col-idx
-                  (recur (dec col-idx))))
-              (if (zero? row-idx)
-                row-idx
-                (recur (dec row-idx)))))
-          deadly-boards)
-    (set @prevent-o-positions))); 
+  (let [max-player-moves (player-next-moves board :x)
+        winning-boards (->> max-player-moves
+                            (keep (fn [move]
+                                   (when (= :x (analyse (add-move board :x move)))
+                                     move))))]
+    winning-boards))
 
 (defn game
   "x y is your move and you play O. X is the starting player"
   [board [x y]]
   {:pre [(is-board? board)]}
   (let [board-with-move (add-move board :o [x y])
-        state (analyse board-with-move)]
+        state (analyse board-with-move)
+        x-moves (first (x-next-moves board-with-move))
+        with-x-move (if (seq x-moves)
+                      (add-move board-with-move :x x-moves)
+                      board-with-move)]
+    (println "with x move")
+    (println with-x-move)
     (case state
       :ongoing
-      {:board (add-move  board-with-move :x (first (x-next-moves board-with-move)))
-       :state (analyse (add-move  board-with-move :x (first (x-next-moves board-with-move))))}
+      {:board with-x-move
+       :state (analyse with-x-move)}
       ;; else
       {:board board-with-move
        :state state})))
@@ -148,6 +140,12 @@
   [[:_ :_ :_]
    [:x :_ :_]
    [:x :_ :o]])
+
+(x-next-moves example-board)
+
+(add-move example-board :x (first (x-next-moves example-board)))
+
+(game example-board [0 0])
 
 (-> example-board
     (game [0 0])
