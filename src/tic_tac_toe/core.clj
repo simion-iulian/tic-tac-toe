@@ -9,13 +9,13 @@
 (defn winning-line?
   [player]
   {:pre [(keyword? player)
-         (some #{player} #{:x :o})
-         ]}
+         (some #{player} #{:x :o})]}
   (fn [line]
     {:pre [(= 3 (count line))]}
     (or (every? (partial = player) line))))
 
-(defn lines-to-cols [board]
+(defn lines-to-cols 
+  [board]
   (->> board
        (apply interleave)
        (partition 3)
@@ -81,40 +81,30 @@
             coordinate)) [])
        (concat m)))
 
-(defn player-next-moves
+(defn next-moves
   ;; look at the empty spots. 
   ;; see if it is possible to add a move for the player at mark
-  [board player]
-  {:pre [(is-board? board)
-         (keyword? player)
-         (some #{player} #{:x :o})]}
-  (reduce-kv empty-marks [] board))
-
-
-;; :x is best to start in a corner
-(def o-win-move [[:x :o :_]
-                 [:_ :o :_]
-                 [:x :o :x]])
-
-(player-next-moves o-win-move :x)
-
-(def near-emtpy-board [[:x :_ :_]
-                       [:_ :_ :_]
-                       [:_ :_ :_]])
-
-(def example-board2 [[:x :x :_]
-                     [:x :o :o]
-                     [:o :x :o]])
-
-(defn x-next-moves
   [board]
   {:pre [(is-board? board)]}
-  (let [max-player-moves (player-next-moves board :x)
-        winning-boards (->> max-player-moves
-                            (keep (fn [move]
-                                   (when (= :x (analyse (add-move board :x move)))
-                                     move))))]
-    winning-boards))
+  (reduce-kv empty-marks [] board))
+
+(defn winning-move? 
+  [board player]
+  (fn [move]
+    (when (= player (analyse (add-move board player move)))
+      move)))
+
+(defn x-move
+  [board]
+  {:pre [(is-board? board)]}
+  (let [possible-moves (next-moves board)]
+    (if-let [winning-boards 
+             (->> possible-moves
+                  (keep (winning-move? board :x))
+                  seq)]
+    winning-boards
+    (->> possible-moves
+         (keep (winning-move? board :o))))))
 
 (defn game
   "x y is your move and you play O. X is the starting player"
@@ -122,12 +112,10 @@
   {:pre [(is-board? board)]}
   (let [board-with-move (add-move board :o [x y])
         state (analyse board-with-move)
-        x-moves (first (x-next-moves board-with-move))
+        x-moves (first (x-move board-with-move))
         with-x-move (if (seq x-moves)
                       (add-move board-with-move :x x-moves)
                       board-with-move)]
-    (println "with x move")
-    (println with-x-move)
     (case state
       :ongoing
       {:board with-x-move
@@ -141,11 +129,10 @@
    [:x :_ :_]
    [:x :_ :o]])
 
-(x-next-moves example-board)
-
-(add-move example-board :x (first (x-next-moves example-board)))
-
-(game example-board [0 0])
+(def o-could-win 
+  [[:o :_ :_]
+   [:x :_ :_]
+   [:x :_ :o]])
 
 (-> example-board
     (game [0 0])
