@@ -35,13 +35,6 @@
          [c2 _  _]] board]
     [c1 m c2]))
 
-(def all-positions
-  (->> (for [x     (range 0 3)
-             y     (range 0 3)
-             :when (not= x y 0)]
-         [x y])
-       (into [])))
-
 (defn with-diagonals 
   [board]
   (-> board
@@ -72,21 +65,20 @@
 (defn add-move [board player mark]
   (assoc-in board mark player))
 
-(defn empty-marks
-  [m col line]
-  (->> line
-       (reduce-kv (fn [coordinate row mark]
-          (if (= mark :_)
-            (conj coordinate [col row])
-            coordinate)) [])
-       (concat m)))
+(defn empty-mark?
+  [board]
+  (fn [mark] 
+    (when (= :_ (get-in board mark)) mark)))
 
 (defn next-moves
   ;; look at the empty spots. 
   ;; see if it is possible to add a move for the player at mark
   [board]
   {:pre [(is-board? board)]}
-  (reduce-kv empty-marks [] board))
+  (->> (for [x     (range 0 3)
+             y     (range 0 3)]
+         [x y])
+       (keep (empty-mark? board))))
 
 (defn winning-move? 
   [board player]
@@ -110,18 +102,18 @@
   "x y is your move and you play O. X is the starting player"
   [board [x y]]
   {:pre [(is-board? board)]}
-  (let [board-with-move (add-move board :o [x y])
-        state (analyse board-with-move)
-        x-moves (first (x-move board-with-move))
+  (let [with-o-move (add-move board :o [x y])
+        state (analyse with-o-move)
+        [x-moves] (x-move with-o-move)
         with-x-move (if (seq x-moves)
-                      (add-move board-with-move :x x-moves)
-                      board-with-move)]
+                      (add-move with-o-move :x x-moves)
+                      with-o-move)]
     (case state
       :ongoing
       {:board with-x-move
        :state (analyse with-x-move)}
       ;; else
-      {:board board-with-move
+      {:board with-o-move
        :state state})))
 
 (def example-board 
